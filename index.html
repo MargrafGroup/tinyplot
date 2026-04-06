@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TinyPlot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- PyScript -->
+  <link rel="stylesheet" href="https://pyscript.net/releases/2026.2.1/core.css">
+  <script type="module" src="https://pyscript.net/releases/2026.2.1/core.js"></script>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image" href="./assets/favicon.ico" />
+
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+
+  <style>
+    :root{
+      --bg:#f7f8fa;
+      --fg:#111;
+      --muted:#606770;
+      --border:#e6e8eb;
+      --accent:#2563eb;
+      --accent-weak:#e8f0ff;
+      --card:#fff;
+    }
+    /* Reset-ish */
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      color: var(--fg);
+      background: var(--bg);
+    }
+
+    /* Navbar */
+    .navbar {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; gap: .75rem;
+      padding: .6rem 1rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .navbar .logo {
+      width: 75px; height: 75px; object-fit: contain;
+      background: white; border-radius: 6px; border: 1px solid var(--border);
+    }
+    .navbar .title {
+      font-size: 1.05rem; font-weight: 700; letter-spacing: .2px;
+    }
+
+    /* Layout */
+    .container {
+      display: grid;
+      grid-template-columns: 1fr minmax(280px, 360px); /* main | sidebar */
+      gap: 1rem;
+      padding: 1rem;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+    @media (max-width: 980px) {
+      .container { grid-template-columns: 1fr; }
+      .sidebar { position: static; top: auto; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    }
+
+    /* Main area (plot + results) */
+    .main {
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: 1rem;
+    }
+    #plot-card { padding: .75rem; }
+    #mpl {
+      width: 100%;
+      height: min(75vh, 800px);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      background: #fff;
+      display: grid; place-items: center;
+      color: var(--muted);
+    }
+    .results {
+      padding: 1rem;
+    }
+    .results h3 {
+      margin: 0 0 .5rem;
+      font-size: 1rem;
+    }
+    .results .kv {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: .25rem .75rem;
+      align-items: baseline;
+      color: var(--muted);
+      margin-top: .5rem;
+    }
+    .results .kv .k { color: var(--muted); }
+    .results .kv .v { color: var(--fg); }
+
+    /* Sidebar (options) */
+    .sidebar {
+      position: sticky; top: 64px;
+      align-self: start;
+      padding: .75rem;
+      display: grid; gap: .75rem;
+    }
+    .section {
+      padding: .75rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .section h3 {
+      margin: 0 0 .5rem;
+      font-size: .95rem;
+    }
+
+    .field { display: grid; gap: .35rem; margin: .5rem 0; }
+    .field label { font-size: .85rem; color: var(--muted); }
+    .field select, .field input[type="number"], .field input[type="text"] {
+      width: 100%;
+      padding: .45rem .55rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      font-size: .92rem;
+    }
+
+    /* Drag & Drop */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: grid; gap: .4rem;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      background: #fff;
+      cursor: pointer;
+      transition: background .2s, border-color .2s, color .2s;
+    }
+    .dropzone.hover {
+      border-color: var(--accent);
+      background: var(--accent-weak);
+      color: var(--accent);
+    }
+    .small { font-size: .85rem; color: var(--muted); }
+    .muted { color: var(--muted); }
+
+    .inline {
+      display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    }
+
+    .hidden { display: none !important; }
+    .danger { color: #b42318; }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <img class="logo" src="./assets/logo_cropped.png" alt="Logo">
+    <div class="title">TinyPlot 1.0</div>
+    <div class="k">Data analysis in your browser</div>
+  </nav>
+
+  <main class="container">
+    <!-- LEFT: Plot + Results -->
+    <section class="main">
+      <div id="plot-card" class="card">
+        <div id="mpl">Plot goes here!</div>
+      </div>
+
+  <div class="results card" aria-live="polite">
+    <h3>Function Parameters</h3>
+
+    <!-- When no fit is selected or no data
+    <div id="results-empty" class="small muted">
+      No analysis yet. Fit parameters will appear here.
+    </div>  -->
+
+    <!-- Parameter panels -->
+    <div id="fit-params" class="hidden">
+
+      <!-- SCATTER: LINEAR -->
+      <div id="params-linear" class="fit-panel hidden">
+        <h4>Linear fit parameters</h4>
+        <div class="field"><label>Slope (m)</label><input id="par-linear-m" type="number" step="any", value=0.0></div>
+        <div class="field"><label>Intercept (b)</label><input id="par-linear-b" type="number" step="any", value=0.0></div>
+      </div>
+
+      <!-- SCATTER: POLYNOMIAL -->
+      <div id="params-poly" class="fit-panel hidden">
+        <h4>Polynomial coefficients</h4>
+        <!-- Dynamically shown based on polynomial degree -->
+        <div id="poly-coeffs"></div>
+      </div>
+
+      <!-- SCATTER: EXPONENTIAL -->
+      <div id="params-exp" class="fit-panel hidden">
+        <h4>Exponential fit parameters</h4>
+        <div class="field"><label>A</label><input id="par-exp-A" type="number" step="any", value=1.0></div>
+        <div class="field"><label>k</label><input id="par-exp-k" type="number" step="any", value=1.0></div>
+        <div class="field"><label>Offset (b)</label><input id="par-exp-b" type="number" step="any", value=0.0></div>
+      </div>
+
+      <!-- SCATTER: LOGARITHMIC -->
+      <div id="params-log" class="fit-panel hidden">
+        <h4>Logarithmic fit parameters</h4>
+        <div class="field"><label>A</label><input id="par-log-A" type="number" step="any", value=1.0></div>
+        <div class="field"><label>Offset (b)</label><input id="par-log-b" type="number" step="any", value=0.0></div>
+      </div>
+
+      <!-- HISTOGRAM: GAUSSIAN -->
+      <div id="params-gauss" class="fit-panel hidden">
+        <h4>Gaussian parameters</h4>
+        <div class="field"><label>Mean (μ)</label><input id="par-gauss-mu" type="number" step="any", value=0.0></div>
+        <div class="field"><label>Std dev (σ)</label><input id="par-gauss-sig" type="number" step="any", value=1.0, min=0.00001></div>
+      </div>
+
+      <!-- HISTOGRAM: LOGNORMAL -->
+      <div id="params-lognorm" class="fit-panel hidden">
+        <h4>Log-normal parameters</h4>
+        <div class="field"><label>Mean (μ)</label><input id="par-lognorm-mu" type="number" step="any", value=0.0></div>
+        <div class="field"><label>Std dev (σ)</label><input id="par-lognorm-sig" type="number" step="any", value=1.0, min=0.00001></div>
+      </div>
+
+      <!-- HISTOGRAM: MAXWELL-BOLTZMANN 2D -->
+      <div id="params-mb2" class="fit-panel hidden">
+        <h4>2D Maxwell–Boltzmann parameters</h4>
+        <div class="field"><label>Scale parameter (a)</label><input id="par-mb2-a" type="number" step="any", value=1.0, min=0.00001></div>
+      </div>
+
+      <!-- HISTOGRAM: MAXWELL-BOLTZMANN 3D -->
+      <div id="params-mb3" class="fit-panel hidden">
+        <h4>3D Maxwell–Boltzmann parameters</h4>
+        <div class="field"><label>Scale parameter (a)</label><input id="par-mb3-a" type="number" step="any", value=1.0, min=0.00001></div>
+      </div>
+
+    </div>
+  </div>
+
+
+
+      <div class="results card" aria-live="polite">
+        <h3>Analysis results</h3>
+        <div id="results-empty" class="small muted">No analysis yet. Fit results, equations, and goodness-of-fit metrics will appear here.</div>
+        <div id="results" class="hidden">
+          <!-- Example structure (populate programmatically) -->
+          <div class="kv">
+            <div class="k">Model</div><div class="v" id="res-model">—</div>
+            <div class="k">Equation</div><div class="v" id="res-equation">—</div>
+            <div class="k">Parameters</div><div class="v" id="res-params">—</div>
+            <div class="k">-log(likelihood)</div><div class="v" id="res-negloglik">—</div>
+            <div class="k">R²</div><div class="v" id="res-r2">—</div>
+            <div class="k">Notes</div><div class="v" id="res-notes">—</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Options Sidebar -->
+    <aside class="sidebar card" role="complementary">
+      <!-- Upload -->
+      <section class="section" aria-labelledby="upload-title">
+        <h3 id="upload-title">Upload CSV</h3>
+        <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Drop CSV file here or click to browse">
+          <div><strong>Drag & drop CSV</strong></div>
+          <div class="small">…or click to choose a file</div>
+          <input id="file-input" type="file" accept=".csv,text/csv" class="hidden" />
+        </div>
+        <div id="file-name" class="small muted" style="margin-top:.35rem;">No file selected.</div>
+      </section>
+
+      <!-- Plot type -->
+      <section class="section" aria-labelledby="plottype-title">
+        <h3 id="plottype-title">Plot type</h3>
+        <div class="inline" role="radiogroup" aria-label="Plot type">
+          <label><input type="radio" name="plot-type" value="scatter" checked> Scatterplot</label>
+          <label><input type="radio" name="plot-type" value="hist"> Histogram</label>
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <section class="section" aria-labelledby="actions-title">
+        <h3 id="actions-title">Actions</h3>
+        <div class="inline">
+          <button id="btn-plot" style="padding:.5rem .8rem;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;">Plot</button>
+          <button id="btn-fit" style="padding:.5rem .8rem;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;">Fit</button>
+          <button id="btn-export" style="padding:.5rem .8rem;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;">Export</button>
+        </div>
+        <div id="action-status" class="small muted" style="margin-top:.35rem;"></div>
+      </section>
+
+      <!-- Scatter options -->
+      <section id="scatter-opts" class="section" aria-labelledby="scatter-title">
+        <h3 id="scatter-title">Scatter options</h3>
+
+        <div class="field">
+          <label for="x-select">X column</label>
+          <select id="x-select">
+            <option value="">—</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="y-select">Y column</label>
+          <select id="y-select">
+            <option value="">—</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="err-select">Error bars (Y)</label>
+          <select id="err-select">
+            <option value="">None</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="fit-func">Fitting function</label>
+          <select id="fit-func">
+            <option value="none" selected>None</option>
+            <option value="linear">Linear</option>
+            <option value="polynomial">Polynomial</option>
+            <option value="exponential">Exponential</option>
+            <option value="logarithmic">Logarithmic</option>
+          </select>
+        </div>
+
+        <div id="poly-degree-wrap" class="field hidden">
+          <label for="poly-degree">Polynomial degree (0–6)</label>
+          <select id="poly-degree">
+            <option value="0">0</option>
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+          </select>
+        </div>
+
+        <div id="loss-type-wrap" class="field hidden">
+          <label>Loss function</label>
+          <div class="inline">
+            <label><input type="radio" name="loss-type" value="ols" checked> OLS</label>
+            <label><input type="radio" name="loss-type" value="wls"> WLS</label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Histogram options -->
+      <section id="hist-opts" class="section hidden" aria-labelledby="hist-title">
+        <h3 id="hist-title">Histogram options</h3>
+
+        <div class="field">
+          <label for="hist-column">Data column</label>
+          <select id="hist-column">
+            <option value="">—</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="hist-fit">Fitting function</label>
+          <select id="hist-fit">
+            <option value="none" selected>None</option>
+            <option value="gaussian">Gaussian</option>
+            <option value="lognormal">Log-Normal</option>
+            <option value="mb-2d">2D Maxwell-Boltzmann</option>
+            <option value="mb-3d">3D Maxwell-Boltzmann</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Layout -->
+      <section class="section" aria-labelledby="layout-title">
+        <h3 id="layout-title">Layout</h3>
+        <div class="field">
+          <label for="plot-title">Title</label>
+          <input id="plot-title" type="text" value="">
+        </div>
+        <div class="field">
+          <label for="x-label">X-axis label</label>
+          <input id="x-label" type="text" value="">
+        </div>
+        <div class="field">
+          <label for="y-label">Y-axis label</label>
+          <input id="y-label" type="text" value="">
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+  /* =====================================================
+     BASIC HELPERS
+  ===================================================== */
+  const $ = id => document.getElementById(id);
+
+  function get_plot_type() {
+      return document.querySelector('input[name="plot-type"]:checked').value;
+  }
+
+  const dropzone = $("dropzone");
+  const fileInput = $("file-input");
+  const fileNameEl = $("file-name");
+
+  const scatterOpts = $("scatter-opts");
+  const histOpts    = $("hist-opts");
+  const fitFunc     = $("fit-func");
+  const polyWrap    = $("poly-degree-wrap");
+
+  const xSel    = $("x-select");
+  const ySel    = $("y-select");
+  const errSel  = $("err-select");
+  const histCol = $("hist-column");
+
+  /* =====================================================
+     1. CSV PARSING (vanilla JS)
+  ===================================================== */
+
+  // Simple CSV parser (handles quoted fields and commas)
+  // This is safe for typical CSV with header row.
+  function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+          const c = text[i];
+
+          if (c === '"') {
+              if (inQuotes && text[i+1] === '"') {
+                  field += '"';  // escaped quote
+                  i++;
+              } else inQuotes = !inQuotes;
+          }
+          else if (c === ',' && !inQuotes) {
+              row.push(field);
+              field = "";
+          }
+          else if  (c === ';' && !inQuotes) {
+              row.push(field);
+              field = "";
+          }
+          else if ((c === '\n' || c === '\r') && !inQuotes) {
+              if (field || row.length) row.push(field);
+              if (row.length) rows.push(row);
+              row = [];
+              field = "";
+          }
+          else {
+              field += c;
+          }
+      }
+
+      if (field || row.length) {
+          row.push(field);
+          rows.push(row);
+      }
+      return rows;
+  }
+
+  /* =====================================================
+     2. POPULATE COLUMN SELECTS FROM CSV HEADER
+  ===================================================== */
+  function populateHeaders(headers) {
+      setOptions(xSel, headers);
+      setOptions(ySel, headers);
+      setOptions(errSel, ["None", ...headers]);
+      setOptions(histCol, headers);
+
+      updatePlotTypeUI();
+      updateFitFuncUI();
+  }
+
+  function setOptions(selectEl, values) {
+      selectEl.innerHTML = "";
+      for (let i = 0; i < values.length; i++) {
+          const opt = document.createElement("option");
+          opt.value = i.toString();
+          opt.textContent = values[i] || "None";
+          selectEl.appendChild(opt);
+      }
+  }
+
+  /* =====================================================
+     3. DRAG & DROP HANDLING
+  ===================================================== */
+  function handleFiles(files) {
+      if (!files || files.length === 0) return;
+
+      const file = files[0];
+      fileNameEl.textContent = file.name;
+
+      file.text().then(text => {
+          const rows = parseCSV(text);
+          window.csv_rows = rows;
+          if (rows.length === 0) return;
+
+          const header = rows[0];
+          window.header = header;
+          populateHeaders(header);
+      });
+  }
+
+  // Basic drag events
+  ["dragenter","dragover","dragleave","drop"].forEach(ev =>
+      dropzone.addEventListener(ev, e => {
+          e.preventDefault();
+          e.stopPropagation();
+      })
+  );
+
+  dropzone.addEventListener("dragover", () => dropzone.classList.add("hover"));
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("hover"));
+
+  dropzone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", e => handleFiles(e.target.files));
+
+  dropzone.addEventListener("drop", e => {
+      dropzone.classList.remove("hover");
+      handleFiles(e.dataTransfer.files);
+  });
+
+  /* =====================================================
+     4. UI LOGIC: SCATTER vs HISTOGRAM
+  ===================================================== */
+  function updatePlotTypeUI() {
+      const type = document.querySelector('input[name="plot-type"]:checked').value;
+
+      scatterOpts.classList.toggle("hidden", type !== "scatter");
+      histOpts.classList.toggle("hidden", type !== "hist");
+
+      // Update axis labels based on plot type
+      if (type === "scatter") {
+          const xText = xSel.options[xSel.selectedIndex]?.text || "";
+          const yText = ySel.options[ySel.selectedIndex]?.text || "";
+          $("x-label").value = xText;
+          $("y-label").value = yText;
+      } else if (type === "hist") {
+          const histText = histCol.options[histCol.selectedIndex]?.text || "";
+          $("x-label").value = histText;
+          $("y-label").value = "Density";
+      }
+  }
+
+  document.querySelectorAll('input[name="plot-type"]').forEach(r =>
+      r.addEventListener("change", updatePlotTypeUI)
+  );
+
+  // Update labels when column selects change
+  xSel.addEventListener("change", () => {
+      if (get_plot_type() === "scatter") {
+          const selectedText = xSel.options[xSel.selectedIndex].text;
+          $("x-label").value = selectedText;
+          // Auto-update plot when column changes
+          $("btn-plot").click();
+      }
+  });
+  ySel.addEventListener("change", () => {
+      if (get_plot_type() === "scatter") {
+          const selectedText = ySel.options[ySel.selectedIndex].text;
+          $("y-label").value = selectedText;
+          // Auto-update plot when column changes
+          $("btn-plot").click();
+      }
+  });
+  histCol.addEventListener("change", () => {
+      if (get_plot_type() === "hist") {
+          const selectedText = histCol.options[histCol.selectedIndex].text;
+          $("x-label").value = selectedText;
+          $("y-label").value = "Density";
+          // Auto-update plot when column changes
+          $("btn-plot").click();
+      }
+  });
+
+  // Auto-update scatter plot when error bars selection changes
+  errSel.addEventListener("change", () => {
+      if (get_plot_type() === "scatter") {
+          $("btn-plot").click();
+      }
+  });
+
+  /* Show polynomial degree only for polynomial fit */
+  function updateFitFuncUI() {
+      polyWrap.classList.toggle("hidden", fitFunc.value !== "polynomial");
+  }
+  fitFunc.addEventListener("change", updateFitFuncUI);
+
+  // Initial state
+  updatePlotTypeUI();
+  updateFitFuncUI();
+
+  /* =====================================================
+     5. FIT PARAMETER PANEL HANDLING
+  ===================================================== */
+
+  function hideAllFitPanels() {
+      document.querySelectorAll(".fit-panel").forEach(p => p.classList.add("hidden"));
+  }
+
+  function updateFitParameterUI() {
+      const plotType = document.querySelector('input[name="plot-type"]:checked').value;
+
+      $("fit-params").classList.remove("hidden");
+      hideAllFitPanels();
+
+      if (plotType === "scatter") {
+          const f = $("fit-func").value;
+
+          if (f === "linear") $("params-linear").classList.remove("hidden");
+          if (f === "exponential") $("params-exp").classList.remove("hidden");
+          if (f === "logarithmic") $("params-log").classList.remove("hidden");
+
+          if (f === "polynomial") {
+              $("params-poly").classList.remove("hidden");
+              updatePolynomialCoefficientInputs();
+          }
+      }
+
+      if (plotType === "hist") {
+          const hf = $("hist-fit").value;
+
+          if (hf === "gaussian") $("params-gauss").classList.remove("hidden");
+          if (hf === "lognormal") $("params-lognorm").classList.remove("hidden");
+          if (hf === "mb-2d") $("params-mb2").classList.remove("hidden");
+          if (hf === "mb-3d") $("params-mb3").classList.remove("hidden");
+      }
+  }
+
+  /* Dynamically build polynomial coefficient fields */
+  function updatePolynomialCoefficientInputs() {
+      const deg = parseInt($("poly-degree").value);
+      const container = $("poly-coeffs");
+      container.innerHTML = "";
+
+      for (let i = 0; i <= deg; i++) {
+        const wrap = document.createElement("div");
+        wrap.className = "field";
+
+        wrap.innerHTML = `
+            <label>a${i}</label>
+            <input id="par-poly-a${i}" type="number" step="any" value=0.0>
+        `;
+        container.appendChild(wrap);
+      }
+  }
+
+  /* --- Event bindings --- */
+  $("fit-func").addEventListener("change", updateFitParameterUI);
+  $("poly-degree").addEventListener("change", updateFitParameterUI);
+  $("hist-fit").addEventListener("change", updateFitParameterUI);
+  document.querySelectorAll('input[name="plot-type"]').forEach(r =>
+      r.addEventListener("change", updateFitParameterUI)
+    );
+  errSel.addEventListener("change", () => {
+      if (errSel.value != "0") {
+          $("loss-type-wrap").classList.remove("hidden");
+      } else {
+          $("loss-type-wrap").classList.add("hidden");
+      }
+  });
+
+  /* =====================================================
+     6. VALIDATE POSITIVE-ONLY FIELDS
+  ===================================================== */
+  // Fields that must have values > 0
+  const positiveOnlyFields = [
+      "par-log-B",
+      "par-gauss-sig",
+      "par-lognorm-sig",
+      "par-mb2-a",
+      "par-mb3-a"
+  ];
+
+  function validatePositiveField(input) {
+      const val = parseFloat(input.value);
+      const minVal = parseFloat(input.min) || 0.00001;
+
+      if (isNaN(val) || val <= 0) {
+          input.value = minVal;
+      }
+  }
+
+  positiveOnlyFields.forEach(fieldId => {
+      const field = $(fieldId);
+      if (field) {
+          field.addEventListener("input", () => validatePositiveField(field));
+          field.addEventListener("change", () => validatePositiveField(field));
+      }
+  });
+
+  /* =====================================================
+     7. RESET FIELDS TO DEFAULTS
+  ===================================================== */
+  function hide_results() {
+      $("results-empty").classList.remove("hidden");
+      $("results").classList.add("hidden");
+  }
+
+  function resetFieldsToDefaults() {
+      // Reset plot type
+      document.querySelector('input[name="plot-type"][value="scatter"]').checked = true;
+
+      // Clear file
+      fileNameEl.textContent = "No file selected.";
+      window.csv_rows = null;
+      window.header = null;
+
+      // Clear column selects
+      setOptions(xSel, [""]);
+      setOptions(ySel, [""]);
+      setOptions(histCol, [""]);
+
+      // Reset error bars to None
+      errSel.value = "";
+
+      // Reset fit functions
+      fitFunc.value = "none";
+      $("hist-fit").value = "none";
+
+      // Reset polynomial degree
+      polyWrap.classList.add("hidden");
+      $("poly-degree").value = "1";
+
+      // Reset loss type
+      document.querySelector('input[name="loss-type"][value="ols"]').checked = true;
+      $("loss-type-wrap").classList.add("hidden");
+
+      // Reset parameter inputs to defaults
+      const paramDefaults = {
+          "par-linear-b": 0.0,
+          "par-linear-m": 0.0,
+          "par-exp-A": 1.0,
+          "par-exp-k": 1.0,
+          "par-exp-b": 0.0,
+          "par-log-A": 1.0,
+          "par-log-B": 1.0,
+          "par-log-b": 0.0,
+          "par-gauss-mu": 0.0,
+          "par-gauss-sig": 1.0,
+          "par-lognorm-mu": 0.0,
+          "par-lognorm-sig": 1.0,
+          "par-mb2-a": 1.0,
+          "par-mb3-a": 1.0
+      };
+
+      for (const [id, val] of Object.entries(paramDefaults)) {
+          $(id).value = val;
+      }
+
+      // Reset layout
+      $("plot-title").value = " ";
+      $("x-label").value = " ";
+      $("y-label").value = " ";
+
+      // Reset dynamic polynomial coeffs
+      updatePolynomialCoefficientInputs();
+
+      // Hide results
+      hide_results();
+
+      // Update UI
+      updatePlotTypeUI();
+      updateFitFuncUI();
+      updateFitParameterUI();
+
+      // Clear action status
+      $("action-status").textContent = "";
+  }
+
+  // Reset on page load
+  resetFieldsToDefaults();
+
+  </script>
+
+  <section class="pyscript">
+    <script type="py" src="./plot.py" config='{"packages":["matplotlib","scipy"]}'></script>
+  </section>
+
+
+</body>
+</html>
