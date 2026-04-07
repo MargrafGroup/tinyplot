@@ -340,7 +340,9 @@ def plot_hist():
     ax1.set_title(title)
     ax1.set_xlabel(xlabel,fontsize=14)
     ax1.set_ylabel(ylabel,fontsize=14)
-    ax1.hist(x, density=True)
+    bins_val = web.page["hist-bins"].value
+    bins = int(bins_val) if bins_val and int(bins_val) >= 1 else None
+    ax1.hist(x, **(dict(bins=bins) if bins else {}), density=True)
     function, parameters = get_function(plottype="hist")
     if function is not None:
         probs = function(x, parameters)

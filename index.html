@@ -532,6 +532,11 @@ Charlie,28,92.1</div>
         </div>
 
         <div class="field">
+          <label for="hist-bins">Number of bins</label>
+          <input id="hist-bins" type="number" min="1" step="1" placeholder="auto">
+        </div>
+
+        <div class="field">
           <label for="hist-fit">Fitting function</label>
           <select id="hist-fit">
             <option value="none" selected>None</option>
@@ -969,6 +974,7 @@ Charlie,28,92.1</div>
       // Reset fit functions
       fitFunc.value = "none";
       $("hist-fit").value = "none";
+      $("hist-bins").value = "";
 
       // Reset polynomial degree
       polyWrap.classList.add("hidden");
