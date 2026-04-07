@@ -757,7 +757,8 @@
       };
 
       for (const [id, val] of Object.entries(paramDefaults)) {
-          $(id).value = val;
+          const el = $(id);
+          if (el) el.value = val;
       }
 
       // Reset layout
