@@ -161,6 +161,10 @@
 
     .hidden { display: none !important; }
     .danger { color: #b42318; }
+    .file-status { display: grid; gap: .4rem; margin-top: .5rem; }
+    .file-status.error { color: #b42318; }
+    .file-status.success { color: #16a34a; }
+    .file-status.loading { color: var(--muted); }
   </style>
 </head>
 <body>
@@ -273,10 +277,13 @@
         <h3 id="upload-title">Upload CSV</h3>
         <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Drop CSV file here or click to browse">
           <div><strong>Drag & drop CSV</strong></div>
-          <div class="small">…or click to choose a file</div>
+          <div class="small">…or click to choose a file (max 16 MB)</div>
           <input id="file-input" type="file" accept=".csv,text/csv" class="hidden" />
         </div>
-        <div id="file-name" class="small muted" style="margin-top:.35rem;">No file selected.</div>
+        <div id="file-status" class="small file-status" style="display:none;">
+          <div id="file-name">No file selected.</div>
+          <div id="file-info" class="small" style="color: var(--muted);"></div>
+        </div>
       </section>
 
       <!-- Plot type -->
@@ -412,6 +419,12 @@
   const dropzone = $("dropzone");
   const fileInput = $("file-input");
   const fileNameEl = $("file-name");
+  const fileStatusEl = $("file-status");
+  const fileInfoEl = $("file-info");
+  
+  // Constants
+  const MAX_FILE_SIZE = 16 * 1024 * 1024; // 16 MB
+  const MAX_ROWS = 100000; // Row limit to prevent parsing timeouts
 
   const scatterOpts = $("scatter-opts");
   const histOpts    = $("hist-opts");
@@ -496,20 +509,91 @@
   /* =====================================================
      3. DRAG & DROP HANDLING
   ===================================================== */
+  
+  function showFileStatus(message, info = "", type = "default") {
+      fileStatusEl.style.display = "block";
+      fileStatusEl.className = `small file-status ${type}`;
+      fileNameEl.textContent = message;
+      fileInfoEl.textContent = info;
+  }
+  
+  function clearFileStatus() {
+      fileStatusEl.style.display = "none";
+      fileNameEl.textContent = "";
+      fileInfoEl.textContent = "";
+  }
+  
+  function validateFile(file) {
+      // Check file extension
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+          showFileStatus("❌ Invalid file type", "Only CSV files are supported.", "error");
+          return false;
+      }
+      
+      // Check file size (16 MB = 16777216 bytes)
+      if (file.size > MAX_FILE_SIZE) {
+          const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+          showFileStatus("❌ File too large", `File is ${sizeMB}MB. Maximum is 16MB.`, "error");
+          return false;
+      }
+      
+      // Check for minimum file size (at least 1 byte)
+      if (file.size === 0) {
+          showFileStatus("❌ Empty file", "File contains no data.", "error");
+          return false;
+      }
+      
+      return true;
+  }
+  
   function handleFiles(files) {
       if (!files || files.length === 0) return;
 
       const file = files[0];
-      fileNameEl.textContent = file.name;
-
+      
+      // Validate file before processing
+      if (!validateFile(file)) {
+          return;
+      }
+      
+      // Show loading state
+      showFileStatus("📂 Loading...", "", "loading");
+      
       file.text().then(text => {
-          const rows = parseCSV(text);
-          window.csv_rows = rows;
-          if (rows.length === 0) return;
-
-          const header = rows[0];
-          window.header = header;
-          populateHeaders(header);
+          try {
+              // Parse CSV
+              const rows = parseCSV(text);
+              
+              // Validate parsed data
+              if (rows.length === 0) {
+                  showFileStatus("❌ Empty CSV", "File contains no rows.", "error");
+                  return;
+              }
+              
+              if (rows.length < 2) {
+                  showFileStatus("❌ Invalid CSV", "CSV must have header and at least 1 data row.", "error");
+                  return;
+              }
+              
+              // Warn if file is very large
+              if (rows.length > MAX_ROWS) {
+                  showFileStatus("⚠️ Large file", `File has ${rows.length.toLocaleString()} rows. Performance may be affected.`, "warning");
+              } else {
+                  showFileStatus("✓ Loaded", `${rows.length.toLocaleString()} rows, ${rows[0].length} columns`, "success");
+              }
+              
+              // Store data
+              window.csv_rows = rows;
+              const header = rows[0];
+              window.header = header;
+              populateHeaders(header);
+          } catch (error) {
+              showFileStatus("❌ Parse error", `Could not parse CSV: ${error.message}`, "error");
+              console.error("CSV parsing error:", error);
+          }
+      }).catch(error => {
+          showFileStatus("❌ Read error", "Could not read file. Please try again.", "error");
+          console.error("File read error:", error);
       });
   }
 
@@ -714,7 +798,7 @@
       document.querySelector('input[name="plot-type"][value="scatter"]').checked = true;
 
       // Clear file
-      fileNameEl.textContent = "No file selected.";
+      clearFileStatus();
       window.csv_rows = null;
       window.header = null;
 
