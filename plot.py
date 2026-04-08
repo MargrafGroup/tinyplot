@@ -79,6 +79,12 @@ def get_data(plottype):
     elif plottype == "hist":
         x_index = int(web.page["hist-column"].value)
         return data[x_index, :]
+    elif plottype == "classify":
+        a_index = int(web.page["class-col-a"].value)
+        b_index = int(web.page["class-col-b"].value)
+        x_a = data[a_index, :]
+        x_b = data[b_index, :]
+        return x_a, x_b
 
 
 def get_function(plottype="scatter"):
@@ -126,6 +132,15 @@ def get_function(plottype="scatter"):
         elif func_type == "mb-3d":
             mb3d = MaxwellBoltzmann(dim=3)
             return mb3d, [float(web.page["par-mb3-a"].value)]
+    elif plottype == "classify":
+        func_type = web.page["class-fit"].value
+        if func_type == "none":
+            return None, (0.0)
+        elif func_type == "logistic":
+            return logistic_sigmoid, (
+                float(web.page["par-logit-w"].value),
+                float(web.page["par-logit-b"].value),
+            )
 
 
 def update_function(parameters, uncertainties, message, plottype="scatter"):
@@ -160,6 +175,13 @@ def update_function(parameters, uncertainties, message, plottype="scatter"):
             web.page["par-mb2-a"].value = str(parameters[0])
         elif func_type == "mb-3d":
             web.page["par-mb3-a"].value = str(parameters[0])
+    elif plottype == "classify":
+        func_type = web.page["class-fit"].value
+        if func_type == "none":
+            return None
+        elif func_type == "logistic":
+            web.page["par-logit-w"].value = str(parameters[0])
+            web.page["par-logit-b"].value = str(parameters[1])
 
     # Write fit parameters + uncertainties into the result summary widget
     model_name = ""
@@ -211,6 +233,17 @@ def update_function(parameters, uncertainties, message, plottype="scatter"):
             #p = np.sqrt(2.0 / np.pi) * v**2 / a**3 * np.exp(-(v**2) / (2 * a**2))
             equation = r"$$p(x) = \sqrt{\frac{2}{\pi}} \frac{x^2}{a^3} \exp\left(-\frac{x^2}{2a^2}\right)$$"
             param_names = ["a"]
+        else:
+            model_name = "None"
+            equation = "-"
+            param_names = []
+
+    elif plottype == "classify":
+        func_type = web.page["class-fit"].value
+        if func_type == "logistic":
+            model_name = "Logistic Regression"
+            equation = r"$$p(y{=}1\mid x) = \frac{1}{1 + e^{-(wx+b)}}$$"
+            param_names = ["w", "b"]
         else:
             model_name = "None"
             equation = "-"
@@ -292,6 +325,8 @@ def plot():
         plot_scatter()
     elif plot_type == "hist":
         plot_hist()
+    elif plot_type == "classify":
+        plot_classify()
 
 
 def plot_scatter():
@@ -374,6 +409,62 @@ def plot_hist():
     display(fig1, target="mpl", append=False)
 
 
+def plot_classify():
+    global current_fig
+    x_a, x_b = get_data("classify")
+    title  = web.page["plot-title"].value or " "
+    xlabel = web.page["x-label"].value or " "
+
+    fig, (ax_hist, ax_main) = plt.subplots(
+        2, 1, sharex=True,
+        gridspec_kw={"height_ratios": [1, 3]},
+        figsize=(6, 5)
+    )
+    fig.suptitle(title)
+
+    # Top panel: overlapping density histograms
+    ax_hist.hist(x_a, density=True, alpha=0.5, label="A (y=0)", color="steelblue")
+    ax_hist.hist(x_b, density=True, alpha=0.5, label="B (y=1)", color="tomato")
+    ax_hist.set_ylabel("Density", fontsize=11)
+    ax_hist.legend(fontsize=9)
+
+    # Bottom panel: class scatter
+    rng = np.random.default_rng(0)
+    jitter_a = rng.uniform(-0.04, 0.04, size=len(x_a))
+    jitter_b = rng.uniform(-0.04, 0.04, size=len(x_b))
+    ax_main.scatter(x_a, jitter_a,       color="steelblue", alpha=0.5, s=15, label="A (y=0)")
+    ax_main.scatter(x_b, 1.0 + jitter_b, color="tomato",    alpha=0.5, s=15, label="B (y=1)")
+    ax_main.set_yticks([0, 1])
+    ax_main.set_yticklabels(["A (0)", "B (1)"])
+    ax_main.set_xlabel(xlabel, fontsize=12)
+    ax_main.set_ylabel("Class", fontsize=12)
+
+    function, parameters = get_function(plottype="classify")
+    if function is not None:
+        x_all = np.concatenate([x_a, x_b])
+        y_all = np.concatenate([np.zeros(len(x_a)), np.ones(len(x_b))])
+        p = function(x_all, parameters)
+        p = np.clip(p, 1e-12, 1 - 1e-12)
+        negloglik = -np.sum(y_all * np.log(p) + (1 - y_all) * np.log(1 - p))
+        web.page["res-negloglik"].textContent = f"{negloglik:.6g}"
+        web.page["res-r2"].textContent = "—"
+        show_results()
+
+        x_range = np.max(x_all) - np.min(x_all)
+        x_plot = np.linspace(np.min(x_all) - 0.1 * x_range, np.max(x_all) + 0.1 * x_range, 200)
+        ax_main.plot(x_plot, function(x_plot, parameters), color="darkorange", lw=2, label="Logistic fit")
+        ax_main.legend(fontsize=9)
+    else:
+        web.page["results-empty"].classes.remove("hidden")
+        web.page["results"].classes.add("hidden")
+
+    plt.tight_layout()
+    if current_fig is not None:
+        plt.close(current_fig)
+    current_fig = fig
+    display(fig, target="mpl", append=False)
+
+
 @when("click", "#btn-fit")
 def fit_data():
     plot_type = get_plot_type()
@@ -399,6 +490,16 @@ def fit_data():
             opt_par, par_err, message = optimize(loss_function, parameters)
             update_function(opt_par, par_err, message, plottype="hist")
             plot_hist()
+    elif plot_type == "classify":
+        x_a, x_b = get_data("classify")
+        function, parameters = get_function(plottype="classify")
+        if function is not None:
+            x_all = np.concatenate([x_a, x_b])
+            y_all = np.concatenate([np.zeros(len(x_a)), np.ones(len(x_b))])
+            loss_function = LossFunction("logistic", (x_all, y_all), function)
+            opt_par, par_err, message = optimize(loss_function, parameters)
+            update_function(opt_par, par_err, message, plottype="classify")
+            plot_classify()
 
 
 @when("click", "#btn-export")
@@ -483,6 +584,12 @@ class LossFunction:
             valid_probs = np.where(np.isfinite(probs) & (probs > 0), probs, 1e-300)
             loss = -np.sum(np.log(valid_probs))
             return loss
+        elif self.loss_type == "logistic":
+            x, y = self.data
+            p = self.function(x, par)
+            p = np.clip(p, 1e-12, 1 - 1e-12)
+            loss = -np.sum(y * np.log(p) + (1 - y) * np.log(1 - p))
+            return loss
 
     def compute_hessian(self, par):
         """Compute the Hessian matrix at parameter values par using finite differences"""
@@ -540,4 +647,12 @@ def lognormal(x, par):
     # p = (1 / (v*np.sqrt(2 * np.pi*np.log(1+sigma**2/mu**2)))
     #          * np.exp(-((np.log(v) - np.log(mu/np.sqrt(1+sigma**2/mu**2)))**2) /
     #                  (2 * np.log(1+sigma**2/mu**2) )) )
+    return p
+
+
+def logistic_sigmoid(x, par):
+    w, b = par
+    z = w * x + b
+    # Numerically stable sigmoid
+    p = np.where(z >= 0, 1.0 / (1.0 + np.exp(-z)), np.exp(z) / (1.0 + np.exp(z)))
     return p

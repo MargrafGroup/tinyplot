@@ -404,6 +404,13 @@ Charlie,28,92.1</div>
         <div class="field"><label>Scale parameter (a)</label><input id="par-mb3-a" type="number" step="any", value=1.0, min=0.00001></div>
       </div>
 
+      <!-- CLASSIFICATION: LOGISTIC REGRESSION -->
+      <div id="params-logistic" class="fit-panel hidden">
+        <h4>Logistic regression parameters</h4>
+        <div class="field"><label>Weight (w)</label><input id="par-logit-w" type="number" step="any" value="0.0"></div>
+        <div class="field"><label>Bias (b)</label><input id="par-logit-b" type="number" step="any" value="0.0"></div>
+      </div>
+
     </div>
   </div>
 
@@ -448,6 +455,7 @@ Charlie,28,92.1</div>
         <div class="inline" role="radiogroup" aria-label="Plot type">
           <label><input type="radio" name="plot-type" value="scatter" checked> Scatterplot</label>
           <label><input type="radio" name="plot-type" value="hist"> Histogram</label>
+          <label><input type="radio" name="plot-type" value="classify"> Classification</label>
         </div>
       </section>
 
@@ -548,6 +556,33 @@ Charlie,28,92.1</div>
         </div>
       </section>
 
+      <!-- Classification options -->
+      <section id="classify-opts" class="section hidden" aria-labelledby="classify-title">
+        <h3 id="classify-title">Classification options</h3>
+
+        <div class="field">
+          <label for="class-col-a">Category A column (y = 0)</label>
+          <select id="class-col-a">
+            <option value="">—</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="class-col-b">Category B column (y = 1)</label>
+          <select id="class-col-b">
+            <option value="">—</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="class-fit">Fitting function</label>
+          <select id="class-fit">
+            <option value="none" selected>None</option>
+            <option value="logistic">Logistic Regression</option>
+          </select>
+        </div>
+      </section>
+
       <!-- Layout -->
       <section class="section" aria-labelledby="layout-title">
         <h3 id="layout-title">Layout</h3>
@@ -587,15 +622,18 @@ Charlie,28,92.1</div>
   const MAX_FILE_SIZE = 16 * 1024 * 1024; // 16 MB
   const MAX_ROWS = 100000; // Row limit to prevent parsing timeouts
 
-  const scatterOpts = $("scatter-opts");
-  const histOpts    = $("hist-opts");
-  const fitFunc     = $("fit-func");
-  const polyWrap    = $("poly-degree-wrap");
+  const scatterOpts  = $("scatter-opts");
+  const histOpts     = $("hist-opts");
+  const classifyOpts = $("classify-opts");
+  const fitFunc      = $("fit-func");
+  const polyWrap     = $("poly-degree-wrap");
 
-  const xSel    = $("x-select");
-  const ySel    = $("y-select");
-  const errSel  = $("err-select");
-  const histCol = $("hist-column");
+  const xSel      = $("x-select");
+  const ySel      = $("y-select");
+  const errSel    = $("err-select");
+  const histCol   = $("hist-column");
+  const classColA = $("class-col-a");
+  const classColB = $("class-col-b");
 
   /* =====================================================
      1. CSV PARSING (vanilla JS)
@@ -652,6 +690,8 @@ Charlie,28,92.1</div>
       setOptions(ySel, headers);
       setOptions(errSel, ["None", ...headers]);
       setOptions(histCol, headers);
+      setOptions(classColA, headers);
+      setOptions(classColB, headers);
 
       updatePlotTypeUI();
       updateFitFuncUI();
@@ -785,6 +825,7 @@ Charlie,28,92.1</div>
 
       scatterOpts.classList.toggle("hidden", type !== "scatter");
       histOpts.classList.toggle("hidden", type !== "hist");
+      classifyOpts.classList.toggle("hidden", type !== "classify");
 
       // Update axis labels based on plot type
       if (type === "scatter") {
@@ -796,6 +837,9 @@ Charlie,28,92.1</div>
           const histText = histCol.options[histCol.selectedIndex]?.text || "";
           $("x-label").value = histText;
           $("y-label").value = "Density";
+      } else if (type === "classify") {
+          $("x-label").value = "";
+          $("y-label").value = "Class";
       }
   }
 
@@ -828,6 +872,13 @@ Charlie,28,92.1</div>
           // Auto-update plot when column changes
           $("btn-plot").click();
       }
+  });
+
+  classColA.addEventListener("change", () => {
+      if (get_plot_type() === "classify") $("btn-plot").click();
+  });
+  classColB.addEventListener("change", () => {
+      if (get_plot_type() === "classify") $("btn-plot").click();
   });
 
   // Auto-update scatter plot when error bars selection changes
@@ -882,6 +933,11 @@ Charlie,28,92.1</div>
           if (hf === "mb-2d") $("params-mb2").classList.remove("hidden");
           if (hf === "mb-3d") $("params-mb3").classList.remove("hidden");
       }
+
+      if (plotType === "classify") {
+          const cf = $("class-fit").value;
+          if (cf === "logistic") $("params-logistic").classList.remove("hidden");
+      }
   }
 
   /* Dynamically build polynomial coefficient fields */
@@ -906,6 +962,7 @@ Charlie,28,92.1</div>
   $("fit-func").addEventListener("change", updateFitParameterUI);
   $("poly-degree").addEventListener("change", updateFitParameterUI);
   $("hist-fit").addEventListener("change", updateFitParameterUI);
+  $("class-fit").addEventListener("change", updateFitParameterUI);
   document.querySelectorAll('input[name="plot-type"]').forEach(r =>
       r.addEventListener("change", updateFitParameterUI)
     );
@@ -967,6 +1024,8 @@ Charlie,28,92.1</div>
       setOptions(xSel, [""]);
       setOptions(ySel, [""]);
       setOptions(histCol, [""]);
+      setOptions(classColA, [""]);
+      setOptions(classColB, [""]);
 
       // Reset error bars to None
       errSel.value = "";
@@ -975,6 +1034,7 @@ Charlie,28,92.1</div>
       fitFunc.value = "none";
       $("hist-fit").value = "none";
       $("hist-bins").value = "";
+      $("class-fit").value = "none";
 
       // Reset polynomial degree
       polyWrap.classList.add("hidden");
@@ -999,7 +1059,9 @@ Charlie,28,92.1</div>
           "par-lognorm-mu": 0.0,
           "par-lognorm-sig": 1.0,
           "par-mb2-a": 1.0,
-          "par-mb3-a": 1.0
+          "par-mb3-a": 1.0,
+          "par-logit-w": 0.0,
+          "par-logit-b": 0.0
       };
 
       for (const [id, val] of Object.entries(paramDefaults)) {
