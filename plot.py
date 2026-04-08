@@ -64,27 +64,51 @@ def calculate_metrics(y, y_pred, err, loss_type):
 
 
 def get_data(plottype):
-    data = np.array([list(r) for r in window.csv_rows][1:], dtype=np.float64).T
+    rows = [list(r) for r in window.csv_rows][1:]
+
+    def read_col(idx):
+        vals = []
+        for r in rows:
+            if idx < len(r):
+                try:
+                    v = float(r[idx])
+                    if not np.isnan(v):
+                        vals.append(v)
+                except (ValueError, TypeError):
+                    pass
+        return np.array(vals, dtype=np.float64)
+
+    def read_cols_aligned(*indices):
+        cols = [[] for _ in indices]
+        for r in rows:
+            try:
+                vals = [float(r[idx]) if idx < len(r) else float("nan") for idx in indices]
+                if any(np.isnan(v) for v in vals):
+                    continue
+                for col, v in zip(cols, vals):
+                    col.append(v)
+            except (ValueError, TypeError):
+                pass
+        return [np.array(c, dtype=np.float64) for c in cols]
+
     if plottype == "scatter":
         x_index = int(web.page["x-select"].value)
         y_index = int(web.page["y-select"].value)
-        x = data[x_index, :]
-        y = data[y_index, :]
         err_select = web.page["err-select"].value
-        err = None
         if err_select and err_select != "" and err_select != "0":
             err_index = int(err_select) - 1
-            err = data[err_index, :]
+            x, y, err = read_cols_aligned(x_index, y_index, err_index)
+        else:
+            x, y = read_cols_aligned(x_index, y_index)
+            err = None
         return x, y, err
     elif plottype == "hist":
         x_index = int(web.page["hist-column"].value)
-        return data[x_index, :]
+        return read_col(x_index)
     elif plottype == "classify":
         a_index = int(web.page["class-col-a"].value)
         b_index = int(web.page["class-col-b"].value)
-        x_a = data[a_index, :]
-        x_b = data[b_index, :]
-        return x_a, x_b
+        return read_col(a_index), read_col(b_index)
 
 
 def get_function(plottype="scatter"):
