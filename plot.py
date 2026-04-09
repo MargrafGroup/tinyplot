@@ -290,6 +290,12 @@ def update_function(parameters, uncertainties, message, plottype="scatter"):
                 formatted.append(f"{name}: {p:.6g} ± {err:.6g}")
             else:
                 formatted.append(f"{name}: {p:.6g}")
+        if plottype == "hist" and web.page["hist-fit"].value == "lognormal" and len(parameters) == 2:
+            mu, sigma = parameters[0], parameters[1]
+            linear_mean = np.exp(mu + sigma**2 / 2)
+            linear_std = np.sqrt((np.exp(sigma**2) - 1) * np.exp(2 * mu + sigma**2))
+            formatted.append(f"mean (linear): {linear_mean:.6g}")
+            formatted.append(f"std (linear): {linear_std:.6g}")
         web.page["res-params"].innerHTML = "<br>".join(formatted)
     else:
         web.page["res-params"].textContent = "—"
