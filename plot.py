@@ -521,7 +521,8 @@ def fit_data():
                 if np.sum(mask) >= 2:
                     u = np.log(y[mask])
                     X_lin = np.column_stack([x[mask], np.ones(np.sum(mask))])
-                    w_lin = 1.0 / np.maximum(err[mask], 1e-10)**2 if (loss_type == "wls" and err is not None) else None
+                    # In log space: sigma_ln(y) ≈ sigma_y / y, so w_log = (y/sigma_y)^2
+                    w_lin = (y[mask] / np.maximum(err[mask], 1e-10))**2 if (loss_type == "wls" and err is not None) else None
                     lin_par, _ = linear_lstsq(X_lin, u, w=w_lin)
                     k0, alpha0 = lin_par
                     A0 = np.exp(np.clip(alpha0, -500, 500))
