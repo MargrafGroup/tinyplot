@@ -347,7 +347,6 @@ def optimize(loss, par):
     stderr = np.sqrt(np.maximum(np.diag(cov), 0))  # Ensure non-negative
     return res.x, stderr, res.message
 
-
 @when("click", "#btn-plot")
 def plot():
     plot_type = get_plot_type()
@@ -503,6 +502,31 @@ def fit_data():
         function, parameters = get_function(plottype="scatter")
         if function is not None:
             loss_type = get_loss_type()
+            func_type = web.page["fit-func"].value
+
+            # --- Logarithmic: exact linear solve, no optimizer ---
+            if func_type == "logarithmic":
+                u = np.log(np.maximum(x, 1e-10))
+                X = np.column_stack([u, np.ones_like(u)])
+                w = 1.0 / np.maximum(err, 1e-10)**2 if (loss_type == "wls" and err is not None) else None
+                opt_par, par_err = linear_lstsq(X, y, w=w)
+                message = "Exact linear solution (log transform)"
+                update_function(opt_par, par_err, message, plottype="scatter")
+                plot_scatter()
+                return
+
+            # --- Exponential: log-space initializer ---
+            if func_type == "exponential":
+                mask = y > 0
+                if np.sum(mask) >= 2:
+                    u = np.log(y[mask])
+                    X_lin = np.column_stack([x[mask], np.ones(np.sum(mask))])
+                    w_lin = 1.0 / np.maximum(err[mask], 1e-10)**2 if (loss_type == "wls" and err is not None) else None
+                    lin_par, _ = linear_lstsq(X_lin, u, w=w_lin)
+                    k0, alpha0 = lin_par
+                    A0 = np.exp(np.clip(alpha0, -500, 500))
+                    parameters = (A0, k0, 0.0)
+
             if loss_type == "wls" and err is not None:
                 # Guard against zero/near-zero errors
                 err_safe = np.maximum(err, 1e-10)
@@ -574,14 +598,36 @@ def polynomial(x, par):
     return res
 
 
+def linear_lstsq(X, y, w=None):
+    """Weighted least-squares solve: X @ params = y.
+    Returns (params, stderr) where cov = sigma2 * (X^T W X)^-1.
+    """
+    if w is not None:
+        sw = np.sqrt(w)
+        Xw = X * sw[:, None]
+        yw = y * sw
+    else:
+        Xw, yw = X, y
+    params, _, _, _ = np.linalg.lstsq(Xw, yw, rcond=None)
+    residuals = y - X @ params
+    n, p = X.shape
+    sigma2 = np.sum((residuals if w is None else residuals * w) * residuals) / max(n - p, 1)
+    try:
+        cov = sigma2 * np.linalg.inv(Xw.T @ Xw)
+        stderr = np.sqrt(np.maximum(np.diag(cov), 0))
+    except np.linalg.LinAlgError:
+        stderr = np.full(p, np.nan)
+    return params, stderr
+
+
 def logarithmic(x, par):
     A, b = par
-    return A * np.log(x) + b
+    return A * np.log(np.maximum(x, 1e-10)) + b
 
 
 def exponential(x, par):
     A, k, b = par
-    return A * np.exp(-k * x) + b
+    return A * np.exp(np.clip(k * x, -500, 500)) + b
 
 
 class LossFunction:
@@ -595,6 +641,10 @@ class LossFunction:
             self.bounds = ((0.0, np.inf),)
         elif self.function == logarithmic:
             self.bounds = ((-np.inf, np.inf), (-np.inf, np.inf))
+        elif self.function == exponential:
+            x_max_abs = np.max(np.abs(self.data[0]))
+            k_bound = 500.0 / max(x_max_abs, 1e-10)
+            self.bounds = ((-np.inf, np.inf), (-k_bound, k_bound), (-np.inf, np.inf))
         else:
             self.bounds = None
 
