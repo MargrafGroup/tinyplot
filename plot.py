@@ -370,6 +370,7 @@ def plot_scatter():
     ax1.set_title(title)
     ax1.set_xlabel(xlabel,fontsize=14)
     ax1.set_ylabel(ylabel,fontsize=14)
+    ax1.ticklabel_format(style='sci', useMathText=True)
     ax1.errorbar(x, y, yerr=err, fmt='o', capsize=3)
     function, parameters = get_function(plottype="scatter")
     if function is not None:
@@ -386,6 +387,17 @@ def plot_scatter():
     else:
         web.page["results-empty"].classes.remove("hidden")
         web.page["results"].classes.add("hidden")
+    # Set y-axis limits based on data extents only, so a fit that overshoots
+    # doesn't rescale the axis away from the scatter points.
+    y_lo = float(np.min(y - err) if err is not None else np.min(y))
+    y_hi = float(np.max(y + err) if err is not None else np.max(y))
+    y_range = y_hi - y_lo
+    margin = 0.05 * y_range if y_range > 0 else 1.0
+    y_lo -= margin
+    y_hi += margin
+    if np.all(y >= 0):
+        y_lo = max(y_lo, 0.0)
+    ax1.set_ylim(y_lo, y_hi)
     plt.tight_layout()
     # Close previous figure to avoid memory leak
     if current_fig is not None:
@@ -404,6 +416,7 @@ def plot_hist():
     ax1.set_title(title)
     ax1.set_xlabel(xlabel,fontsize=14)
     ax1.set_ylabel(ylabel,fontsize=14)
+    ax1.ticklabel_format(style='sci', useMathText=True)
     bins_val = web.page["hist-bins"].value
     bins = int(bins_val) if bins_val and int(bins_val) >= 1 else None
     ax1.hist(x, **(dict(bins=bins) if bins else {}), density=True)
