@@ -517,6 +517,27 @@ def fit_data():
             loss_type = get_loss_type()
             func_type = web.page["fit-func"].value
 
+            # --- Linear: exact OLS/WLS solution ---
+            if func_type == "linear":
+                X = np.column_stack([np.ones_like(x), x])
+                w = 1.0 / np.maximum(err, 1e-10)**2 if (loss_type == "wls" and err is not None) else None
+                opt_par, par_err = linear_lstsq(X, y, w=w)
+                message = "Exact least-squares solution"
+                update_function(opt_par, par_err, message, plottype="scatter")
+                plot_scatter()
+                return
+
+            # --- Polynomial: exact OLS/WLS solution ---
+            if func_type == "polynomial":
+                degree = int(web.page["poly-degree"].value)
+                X = np.column_stack([x**i for i in range(degree + 1)])
+                w = 1.0 / np.maximum(err, 1e-10)**2 if (loss_type == "wls" and err is not None) else None
+                opt_par, par_err = linear_lstsq(X, y, w=w)
+                message = "Exact least-squares solution"
+                update_function(opt_par, par_err, message, plottype="scatter")
+                plot_scatter()
+                return
+
             # --- Logarithmic: exact linear solve, no optimizer ---
             if func_type == "logarithmic":
                 u = np.log(np.maximum(x, 1e-10))
@@ -690,16 +711,16 @@ class LossFunction:
         def loss_func(x):
             return self(x)
         
-        # Use finite differences to compute Hessian
-        eps = 1e-5
+        # Parameter-relative step: cbrt(eps_mach) * scale, optimal for double forward-difference
+        h = np.cbrt(np.finfo(float).eps) * np.maximum(np.abs(par), 1.0)
         n = len(par)
         hess = np.zeros((n, n))
         
         # Compute Hessian by differentiating the gradient
         for i in range(n):
-            def grad_i(x):
-                return approx_fprime(x, loss_func, epsilon=eps)[i]
-            hess[i, :] = approx_fprime(par, grad_i, epsilon=eps)
+            def grad_i(x, _i=i):
+                return approx_fprime(x, loss_func, epsilon=h)[_i]
+            hess[i, :] = approx_fprime(par, grad_i, epsilon=h)
         
         # Symmetrize the Hessian to ensure numerical stability
         hess = (hess + hess.T) / 2
