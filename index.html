@@ -639,9 +639,29 @@ Charlie,28,92.1</div>
      1. CSV PARSING (vanilla JS)
   ===================================================== */
 
-  // Simple CSV parser (handles quoted fields and commas)
-  // This is safe for typical CSV with header row.
-  function parseCSV(text) {
+  // Detect CSV delimiter from the header row.
+  // Returns ';', ',', or null (single-column / no delimiter).
+  function detectDelimiter(text) {
+      let commas = 0, semicolons = 0, inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+          const c = text[i];
+          if (c === '"') inQuotes = !inQuotes;
+          else if (c === '\n' || c === '\r') break;
+          else if (!inQuotes) {
+              if (c === ',') commas++;
+              else if (c === ';') semicolons++;
+          }
+      }
+      if (semicolons > 0 && semicolons >= commas) return ';';
+      if (commas > 0) return ',';
+      return null;
+  }
+
+  // CSV parser with explicit delimiter.
+  // delimiter: ',' | ';' | null (single-column, no splitting).
+  // When delimiter is ';' or null, commas in fields are treated as
+  // decimal separators and normalised to '.' after parsing.
+  function parseCSV(text, delimiter) {
       const rows = [];
       let row = [];
       let field = "";
@@ -656,11 +676,7 @@ Charlie,28,92.1</div>
                   i++;
               } else inQuotes = !inQuotes;
           }
-          else if (c === ',' && !inQuotes) {
-              row.push(field);
-              field = "";
-          }
-          else if  (c === ';' && !inQuotes) {
+          else if (delimiter && c === delimiter && !inQuotes) {
               row.push(field);
               field = "";
           }
@@ -679,6 +695,16 @@ Charlie,28,92.1</div>
           row.push(field);
           rows.push(row);
       }
+
+      // Normalise decimal commas when comma is not the delimiter
+      if (delimiter !== ',') {
+          for (const r of rows) {
+              for (let j = 0; j < r.length; j++) {
+                  r[j] = r[j].replace(/,/g, '.');
+              }
+          }
+      }
+
       return rows;
   }
 
@@ -762,8 +788,9 @@ Charlie,28,92.1</div>
       
       file.text().then(text => {
           try {
-              // Parse CSV
-              const rows = parseCSV(text);
+              // Detect delimiter and parse CSV
+              const delimiter = detectDelimiter(text);
+              const rows = parseCSV(text, delimiter);
               
               // Validate parsed data
               if (rows.length === 0) {
