@@ -264,6 +264,49 @@
       white-space: pre-wrap;
       word-wrap: break-word;
     }
+
+    /* Footer */
+    .footer {
+      max-width: 1600px;
+      margin: 0 auto 1rem;
+      padding: 0 1rem;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+    .footer-inner {
+      border-top: 1px solid var(--border);
+      padding: .8rem 0;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: .35rem;
+    }
+    .footer-link {
+      border: none;
+      background: none;
+      padding: 0;
+      margin: 0;
+      color: var(--accent);
+      font: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .footer-link:hover,
+    .footer-link:focus-visible {
+      color: #1747a6;
+      outline: none;
+    }
+    .footer-sep {
+      color: var(--muted);
+    }
+
+    @media (max-width: 600px) {
+      .footer-inner {
+        justify-content: center;
+        text-align: center;
+      }
+    }
   </style>
 </head>
 <body>
@@ -273,15 +316,15 @@
     <div class="title">TinyPlot 1.0</div>
     <div class="k">Data analysis in your browser</div>
     <div class="spacer"></div>
-    <button id="help-btn" class="help-btn">? Help</button>
+    <button id="help-btn" class="help-btn" data-modal-open="help-modal">? Help</button>
   </nav>
 
   <!-- Help Modal -->
-  <div id="help-modal" class="modal">
-    <div class="modal-content">
+  <div id="help-modal" class="modal" role="dialog" aria-modal="true">
+    <div class="modal-content" aria-labelledby="help-modal-title">
       <div class="modal-header">
-        <h2>TinyPlot Help</h2>
-        <button class="close-btn">&times;</button>
+        <h2 id="help-modal-title">TinyPlot Help</h2>
+        <button class="close-btn" aria-label="Close Help modal">&times;</button>
       </div>
       
       <div class="modal-section">
@@ -327,6 +370,76 @@ Charlie,28,92.1</div>
           <li>Large files (>100k rows) may have reduced performance</li>
           <li>All data processing happens in your browser—nothing is uploaded</li>
         </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Imprint Modal -->
+  <div id="imprint-modal" class="modal" role="dialog" aria-modal="true">
+    <div class="modal-content" aria-labelledby="imprint-modal-title">
+      <div class="modal-header">
+        <h2 id="imprint-modal-title">Imprint</h2>
+        <button class="close-btn" aria-label="Close Imprint modal">&times;</button>
+      </div>
+
+      <div class="modal-section">
+        <h3>Information according to § 5 Digitale-Dienste-Gesetz (DDG)</h3>
+        <p><strong>Name:</strong><br>Prof. Dr. Johannes Margraf</p>
+        <p><strong>Address:</strong><br>University of Bayreuth<br>Physical Chemistry V: Theory and Machine Learning<br>Weiherstrasse 26<br>95448 Bayreuth<br>Germany</p>
+        <p><strong>Contact:</strong><br>Email: ChemML@uni-bayreuth.de</p>
+        <p><strong>Responsible for the content according to § 18(2) MStV:</strong><br>Prof. Dr. Johannes Margraf</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Modal -->
+  <div id="privacy-modal" class="modal" role="dialog" aria-modal="true">
+    <div class="modal-content" aria-labelledby="privacy-modal-title">
+      <div class="modal-header">
+        <h2 id="privacy-modal-title">Privacy Policy</h2>
+        <button class="close-btn" aria-label="Close Privacy Policy modal">&times;</button>
+      </div>
+
+      <div class="modal-section">
+        <h3>1. General Information</h3>
+        <p>This website is a static web application hosted on GitHub Pages and provided for informational and research purposes. No server-side data processing is performed by the website operator.</p>
+      </div>
+
+      <div class="modal-section">
+        <h3>2. Hosting</h3>
+        <p>This website is hosted by:</p>
+        <p>GitHub, Inc.<br>88 Colin P Kelly Jr St<br>San Francisco, CA 94107<br>USA</p>
+        <p>When you visit this website, GitHub may collect technical information such as IP addresses, access times, and browser information in server log files. This data is processed for the purpose of ensuring the technical operation and security of the website.</p>
+        <p>The legal basis for this processing is Art. 6(1)(f) GDPR (legitimate interest).</p>
+        <p>Further information can be found in GitHub's Privacy Statement:<br><a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener noreferrer">https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement</a></p>
+      </div>
+
+      <div class="modal-section">
+        <h3>3. Local Data Processing</h3>
+        <p>All data analysis performed by this web application runs locally in your browser using in-browser technologies. Any data you load into the application is processed exclusively on your device and is not transmitted to the website operator or to third parties.</p>
+      </div>
+
+      <div class="modal-section">
+        <h3>4. Cookies and Tracking</h3>
+        <p>This website does not use cookies for tracking, analytics, or advertising purposes. No user profiling takes place.</p>
+      </div>
+
+      <div class="modal-section">
+        <h3>5. Contact</h3>
+        <p>If you contact the website operator by email, your message will be processed solely for the purpose of responding to your inquiry. The legal basis is Art. 6(1)(b) GDPR.</p>
+      </div>
+
+      <div class="modal-section">
+        <h3>6. Your Rights</h3>
+        <p>You have the right to request access to, rectification or deletion of your personal data, as well as the right to restrict processing and to lodge a complaint with a supervisory authority, in accordance with the General Data Protection Regulation (GDPR).</p>
+      </div>
+
+      <div class="modal-section">
+        <h3>7. Data Controller</h3>
+        <p>The data controller responsible for this website is:</p>
+        <p><strong>Name:</strong><br>Prof. Dr. Johannes Margraf</p>
+        <p><strong>Address:</strong><br>University of Bayreuth<br>Physical Chemistry V: Theory and Machine Learning<br>Weiherstrasse 26<br>95448 Bayreuth<br>Germany</p>
+        <p><strong>Contact:</strong><br>Email: ChemML@uni-bayreuth.de</p>
       </div>
     </div>
   </div>
@@ -601,6 +714,16 @@ Charlie,28,92.1</div>
       </section>
     </aside>
   </main>
+
+  <footer class="footer" aria-label="Legal information">
+    <div class="footer-inner">
+      <span>© 2026 Johannes Margraf</span>
+      <span class="footer-sep">·</span>
+      <button id="imprint-btn" class="footer-link" data-modal-open="imprint-modal">Imprint</button>
+      <span class="footer-sep">·</span>
+      <button id="privacy-btn" class="footer-link" data-modal-open="privacy-modal">Privacy Policy</button>
+    </div>
+  </footer>
 
   <script>
   /* =====================================================
@@ -1116,34 +1239,43 @@ Charlie,28,92.1</div>
       $("action-status").textContent = "";
   }
 
-  /* =====================================================
-     HELP MODAL
-  ===================================================== */
-  const helpModal = $("help-modal");
-  const helpBtn = $("help-btn");
-  const closeBtn = document.querySelector(".close-btn");
+    /* =====================================================
+     MODAL HANDLING
+    ===================================================== */
+    function openModalById(modalId) {
+      const modal = $(modalId);
+      if (modal) modal.classList.add("active");
+    }
 
-  helpBtn.addEventListener("click", () => {
-      helpModal.classList.add("active");
-  });
+    function closeModal(modal) {
+      if (modal) modal.classList.remove("active");
+    }
 
-  closeBtn.addEventListener("click", () => {
-      helpModal.classList.remove("active");
-  });
+    document.querySelectorAll("[data-modal-open]").forEach(trigger => {
+      trigger.addEventListener("click", () => {
+        openModalById(trigger.dataset.modalOpen);
+      });
+    });
 
-  // Close modal when clicking outside content
-  window.addEventListener("click", (e) => {
-      if (e.target === helpModal) {
-          helpModal.classList.remove("active");
+    document.querySelectorAll(".modal .close-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        closeModal(btn.closest(".modal"));
+      });
+    });
+
+    // Close modal when clicking the backdrop.
+    window.addEventListener("click", (e) => {
+      if (e.target.classList.contains("modal")) {
+        closeModal(e.target);
       }
-  });
+    });
 
-  // Close modal with Escape key
-  document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && helpModal.classList.contains("active")) {
-          helpModal.classList.remove("active");
-      }
-  });
+    // Close top-most active modal with Escape.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const activeModals = Array.from(document.querySelectorAll(".modal.active"));
+      closeModal(activeModals[activeModals.length - 1]);
+    });
 
   // Reset on page load
   resetFieldsToDefaults();
